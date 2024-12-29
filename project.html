@@ -1,0 +1,246 @@
+<html>
+<head>
+    <title>Final Project: Cool Terrain</title>
+</head>
+<body>
+    <h1>Terrain Generation</h1>
+
+    <canvas width="800" height="800"> </canvas>
+
+    <script id="shader" type="wgsl">
+        struct Vertex {
+            @location(0) position: vec3f,
+            @location(1) color: vec3f
+        };
+
+        struct VSOutput {
+            @builtin(position) position: vec4f,
+            @location(0) color: vec4f,
+        };
+
+        struct UniformStruct {
+            translation : vec4<f32>,
+            angles : vec4<f32>
+        };
+
+        @group(0) @binding(0) var<uniform> uniformStruct : UniformStruct;
+
+        @vertex fn vs(vert: Vertex) -> VSOutput {
+            // sin and cos of the camera angles
+            var c = cos(  uniformStruct.angles );
+            var s = sin(  uniformStruct.angles );
+
+            // translation matrix
+            var trans = mat4x4<f32> ( 1.0,  0.0,  0.0,  0.0,
+                0.0,  1.0,  0.0,  0.0,
+                0.0, 0.0,  1.0,  0.0,
+                uniformStruct.translation.x, uniformStruct.translation.y, uniformStruct.translation.z, 1.0 );
+
+            ////////////////////////
+            // Defining a perspective matrix, so we can have z axis motion without extreme clipping
+
+            // Consts, I have selected a reasonable FOV, and our aspect ratio = 1
+            var fov = (2 * 3.1415) / 5;
+            var near = 0.3;
+            var far = 1000.0;
+
+            // perspective matrix
+            var perspective = mat4x4<f32> ( 1 / tan(fov / 2),  0.0,  0.0,  0.0,
+                                        0.0, 1 / tan(fov / 2), 0.0, 0.0,
+                                        0.0, 0.0, -(far+near)/(far-near), -(2*far*near)/(far-near),
+                                        0.0,  0.0, 0.0, 1.0 );
+
+            // rotation matrices
+            var rx = mat4x4<f32> ( 1.0, 0.0, 0.0, 0.0,
+                                0.0,  c.x,  s.x,  0.0,
+                                0.0, -s.x,  c.x,  0.0,
+                                0.0,  0.0,  0.0,  1.0 );
+
+            var ry = mat4x4<f32> ( c.y,  0.0, -s.y,  0.0,
+                                0.0,  1.0,  0.0,  0.0,
+                                s.y,  0.0,  c.y,  0.0,
+                                0.0,  0.0,  0.0,  1.0 );
+
+            var rz = mat4x4<f32> ( c.z,  s.z,  0.0,  0.0,
+                                -s.z,  c.z,  0.0,  0.0,
+                                0.0,  0.0,  1.0,  0.0,
+                                0.0,  0.0,  0.0,  1.0 );
+
+            var vsOut: VSOutput;
+            vsOut.position = perspective * trans * rz * ry * rx * vec4f(vert.position.x, vert.position.y, vert.position.z, 1);
+            vsOut.color = vec4f(vert.color.x, vert.color.y, vert.color.z, 1);
+            return vsOut;
+        }
+
+        @fragment fn fs(vsOut: VSOutput) -> @location(0) vec4f {
+            return vsOut.color;
+        }
+    </script>
+
+    <script id="shader2" type="wgsl">
+        struct VSTextureOutput {
+            @builtin(position) position: vec4f,
+            @location(0) texcoord: vec2f,
+        };
+
+        @group(0) @binding(0) var ourSampler: sampler;
+        @group(0) @binding(1) var ourTexture: texture_2d<f32>;
+
+        @vertex fn vs(@builtin(vertex_index) vertexIndex : u32) -> VSTextureOutput {
+              let pos = array(
+                // 1st triangle
+                vec2f( -1.0,  -1.0),
+                vec2f( 1.0,  -1.0),
+                vec2f( 1.0,  1.0),
+
+                // 2nd triangle
+                vec2f( -1.0,  -1.0),
+                vec2f( -1.0,  1.0),
+                vec2f( 1.0,  1.0),
+              );
+
+              var vsOutput: VSTextureOutput;
+              let xy = pos[vertexIndex];
+              vsOutput.position = vec4f(xy, 0.0, 1.0);
+              vsOutput.texcoord = xy;
+              return vsOutput;
+        }
+
+        @fragment fn fs(fsInput: VSTextureOutput) -> @location(0) vec4f {
+            return textureSample(ourTexture, ourSampler, fsInput.texcoord);
+        }
+    </script>
+
+    <script id="shader3" type="wgsl">
+        struct VSTextureOutput {
+            @builtin(position) position: vec4f,
+            @location(0) texcoord: vec2f,
+        };
+
+        struct Vertex {
+             @location(0) position: vec2f,
+        };
+
+        struct UniformStruct {
+            translation : vec4<f32>,
+            angles : vec4<f32>
+        };
+
+        @group(0) @binding(0) var ourSampler: sampler;
+        @group(0) @binding(1) var ourTexture: texture_2d<f32>;
+        @group(0) @binding(2) var<uniform> uniformStruct : UniformStruct;
+
+        @vertex fn vs(vert : Vertex) -> VSTextureOutput {
+            // scale matrix
+            var scale = mat4x4<f32> ( 0.25,  0.0,  0.0,  0.0,
+                0.0,  0.25,  0.0,  0.0,
+                0.0, 0.0,  1.0,  0.0,
+                0.0, 0.0,  0.0,  1.0 );
+
+            // translation matrix
+             var trans = mat4x4<f32> ( 1.0,  0.0,  0.0,  0.0,
+                0.0,  1.0,  0.0,  0.0,
+                0.0, 0.0,  1.0,  0.0,
+                uniformStruct.translation.x, uniformStruct.translation.y + 2, 0.0, 1.0 );
+
+              var vsOutput: VSTextureOutput;
+              let xy = vec2f(vert.position.x, vert.position.y);
+              vsOutput.position = scale * trans * vec4f(xy, 0.0, 1.0);
+              vsOutput.texcoord = xy;
+              return vsOutput;
+        }
+
+        @fragment fn fs(fsInput: VSTextureOutput) -> @location(0) vec4f {
+            return textureSample(ourTexture, ourSampler, fsInput.texcoord);
+        }
+    </script>
+
+    <script type="text/javascript" src="./project.js"></script>
+    <script type="text/javascript" src="./terrain.js"></script>
+
+    <script type="text/javascript">
+        function gotKey(event) {
+            var key = event.key;
+
+            // Rotation using the x, y, and z keys
+            if (key == 'x')
+                angles[0] -= 5;
+            else if (key == 'y')
+                angles[1] -= 5;
+            else if (key == 'z')
+                angles[2] -= 5;
+            else if (key == 'X')
+                angles[0] += 5;
+            else if (key == 'Y')
+                angles[1] += 5;
+            else if (key == 'Z')
+                angles[2] += 5;
+
+            // Translation using wasd, and the +- keys for the z-axis
+            if (key == 'w')
+                translation[1] += 0.1;
+            else if (key == 'a')
+                translation[0] -= 0.1;
+            else if (key == 's')
+                translation[1] -= 0.1;
+            else if (key == 'd')
+                translation[0] += 0.1;
+            else if (key == 'W')
+                translation[1] += 0.1;
+            else if (key == 'A')
+                translation[0] -= 0.1;
+            else if (key == 'S')
+                translation[1] -= 0.1;
+            else if (key == 'D')
+                translation[0] += 0.1;
+            else if (key == '+')
+                translation[2] += 0.1;
+            else if (key == '-')
+                translation[2] -= 0.1;
+
+            if (key == 'r') {
+                main();
+            }
+
+            // Recalculate
+            createShape();
+            render();
+        }
+    </script>
+
+    <table>
+        <tr>
+            <td>
+                <h3>Scene Controls</h3>
+                <table border="1">
+                    <tbody>
+                        <tr>
+                            <td>x, y, z</td>
+                            <td>Rotate the scene forward about the x, y, or z axis</td>
+                        </tr>
+                        <tr>
+                            <td>X, Y, Z</td>
+                            <td>Rotate the scene backward about the x, y, or z axis</td>
+                        </tr>
+                        <tr>
+                            <td>w, a, s, d</td>
+                            <td>Translate the scene along the x and y axis</td>
+                        </tr>
+                        <tr>
+                            <td>+, -</td>
+                            <td>Move the scene along the z axis</td>
+                        </tr>
+                        <tr>
+                            <td>r</td>
+                            <td>Generate a new set of terrain</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+
+
+

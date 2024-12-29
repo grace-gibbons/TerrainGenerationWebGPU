@@ -4,3 +4,6 @@ This project was the final project of RIT’s Introduction to Computer Graphics,
 <br/>
 <br/>
 For our final project, we needed to render a 3D scene using some sort of terrain generation algorithm, complete with a 3D camera. I selected the Diamond Square algorithm, as we discussed it in class, and I felt it would be a good starting point for me implement, as before this project, I had limited experience with terrain generation. 
+<br/>
+<br/>
+Note: WebGPU only functions on certain browsers. I have found Chrome is a good one to use.
